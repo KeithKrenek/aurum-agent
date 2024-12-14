@@ -24,43 +24,58 @@ interface UserDetails {
   currentInterviewId?: string;
 }
 
+interface AppContentProps {
+  userDetails: UserDetails | null;
+  refreshUserDetails: () => Promise<void>;
+}
+
 function App() {
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const checkUserDetails = async () => {
-      setLoading(true);
-      const sessionId = sessionStorage.getItem('interviewId');
-      const userEmail = sessionStorage.getItem('userEmail');
-      
-      if (sessionId && userEmail) {
-        try {
-          const interviewDoc = await getDoc(doc(db, 'interviews', sessionId));
-          if (interviewDoc.exists() && interviewDoc.data().userEmail === userEmail) {
-            setUserDetails({
-              name: interviewDoc.data().userName,
-              email: userEmail,
-              createdAt: interviewDoc.data().createdAt.toDate(),
-              currentInterviewId: sessionId
-            });
-          } else {
-            sessionStorage.removeItem('interviewId');
-            sessionStorage.removeItem('userEmail');
-            setUserDetails(null);
-          }
-        } catch (error) {
-          console.error('Error fetching interview details:', error);
-          sessionStorage.removeItem('interviewId');
-          sessionStorage.removeItem('userEmail');
-          setUserDetails(null);
+  const checkUserDetails = async () => {
+    setLoading(true);
+    const sessionId = sessionStorage.getItem('interviewId');
+    const userEmail = sessionStorage.getItem('userEmail');
+    const userName = sessionStorage.getItem('userName');
+    
+    if (sessionId && userEmail && userName) {
+      try {
+        const interviewDoc = await getDoc(doc(db, 'interviews', sessionId));
+        if (interviewDoc.exists() && interviewDoc.data().userEmail === userEmail) {
+          setUserDetails({
+            name: userName,
+            email: userEmail,
+            createdAt: interviewDoc.data().createdAt.toDate(),
+            currentInterviewId: sessionId
+          });
+        } else {
+          clearSessionData();
         }
+      } catch (error) {
+        console.error('Error fetching interview details:', error);
+        clearSessionData();
       }
-      setLoading(false);
-    };
+    }
+    setLoading(false);
+  };
 
+  const clearSessionData = () => {
+    sessionStorage.removeItem('interviewId');
+    sessionStorage.removeItem('userEmail');
+    sessionStorage.removeItem('userName');
+    setUserDetails(null);
+  };
+
+  useEffect(() => {
     checkUserDetails();
   }, []);
+
+  // Make checkUserDetails available to child components
+  const contextValue = {
+    userDetails,
+    refreshUserDetails: checkUserDetails
+  };
 
   if (loading) {
     return <LoadingSpinner />;
@@ -69,13 +84,13 @@ function App() {
   return (
     <ErrorBoundary>
       <Router>
-        <AppContent userDetails={userDetails} />
+        <AppContent userDetails={userDetails} refreshUserDetails={checkUserDetails} />
       </Router>
     </ErrorBoundary>
   );
 }
 
-const AppContent: React.FC<{ userDetails: UserDetails | null }> = ({ userDetails }) => {
+const AppContent: React.FC<AppContentProps> = ({ userDetails, refreshUserDetails }) => {
   const location = useLocation();
 
   useEffect(() => {
@@ -90,7 +105,7 @@ const AppContent: React.FC<{ userDetails: UserDetails | null }> = ({ userDetails
         <Routes>
           <Route 
             path="/auth" 
-            element={!userDetails ? <Auth /> : <Navigate to="/chat" replace />} 
+            element={!userDetails ? <Auth onRegistrationComplete={refreshUserDetails} /> : <Navigate to="/chat" replace />} 
           />
           <Route
             path="/chat"
