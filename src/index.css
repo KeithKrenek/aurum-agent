@@ -1,0 +1,70 @@
+@import 'tailwindcss/base';
+@import 'tailwindcss/components';
+@import 'tailwindcss/utilities';
+
+@font-face {
+  font-family: 'Caslon Grad';
+  src: url('/fonts/CaslonGrad-Regular.ttf') format('ttf');
+  font-weight: normal;
+  font-style: normal;
+}
+
+@font-face {
+  font-family: 'Caslon Grad';
+  src: url('/fonts/IbarraRealNova-Bold.ttf') format('ttf');
+  font-weight: 800;
+  font-style: normal;
+}
+
+:root {
+  --color-primary: #000000;
+  --color-secondary: #ffffff;
+  --color-neutral-gray: #85888C;
+  --color-white-smoke: #EDECED;
+  --color-dark-gray: #2a2b2a;
+  --color-taupe-gray: #8b8988;
+  --color-dark-olive: #46423c;
+  --color-bone: #e3e0da;
+  --color-pale-slate: #dbdce0;
+  --color-desert-sand: #e3cdbd;
+  --color-champagne: #e3d9c5;
+}
+
+body {
+  @apply bg-white text-black leading-normal;
+  font-family: Helvetica, Arial, sans-serif;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Caslon Grad', serif;
+}
+
+h1 {
+  @apply text-5xl font-extrabold;
+}
+
+h2 {
+  @apply text-3xl font-normal;
+}
+
+.body-text {
+  @apply text-lg;
+}
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--color-white-smoke);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--color-neutral-gray);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--color-dark-gray);
+}
