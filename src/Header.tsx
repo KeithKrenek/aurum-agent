@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { User } from 'firebase/auth';
-import whiteLogo from '../assets/white-logo.png';
+// import { User } from 'firebase/auth';
+import whiteLogo from './assets/white-logo.png';
 
 interface UserDetails {
   email: string;

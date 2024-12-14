@@ -5,43 +5,55 @@ import ReactGA from 'react-ga4';
 import Header from './Header';
 import Footer from './Footer';
 import Chat from './Chat';
-import Report from './Report';
 import Auth from './Auth';
 import LoadingSpinner from './LoadingSpinner';
 import ErrorBoundary from './ErrorBoundary';
 import { db } from './firebase';
 import { doc, getDoc } from 'firebase/firestore';
 
-// Initialize Google Analytics
-ReactGA.initialize('G-0YYN1T7X1M'); // Replace with your actual GA4 Measurement ID
+// Initialize Google Analytics only if measurement ID is available
+const GA_MEASUREMENT_ID = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID;
+if (GA_MEASUREMENT_ID) {
+  ReactGA.initialize(GA_MEASUREMENT_ID);
+}
 
 interface UserDetails {
-  // Define the structure of your user details here
-  email: string;
   name: string;
-  // Add other fields as necessary
+  email: string;
+  createdAt: Date;
+  currentInterviewId?: string;
 }
 
 function App() {
-  
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const checkUserDetails = async () => {
       setLoading(true);
-      const storedEmail = localStorage.getItem('email');
-      if (storedEmail) {
+      const sessionId = sessionStorage.getItem('interviewId');
+      const userEmail = sessionStorage.getItem('userEmail');
+      
+      if (sessionId && userEmail) {
         try {
-          const userDoc = await getDoc(doc(db, 'users', storedEmail));
-          if (userDoc.exists()) {
-            setUserDetails(userDoc.data() as UserDetails);
+          const interviewDoc = await getDoc(doc(db, 'interviews', sessionId));
+          if (interviewDoc.exists() && interviewDoc.data().userEmail === userEmail) {
+            setUserDetails({
+              name: interviewDoc.data().userName,
+              email: userEmail,
+              createdAt: interviewDoc.data().createdAt.toDate(),
+              currentInterviewId: sessionId
+            });
           } else {
-            localStorage.removeItem('email');
+            sessionStorage.removeItem('interviewId');
+            sessionStorage.removeItem('userEmail');
             setUserDetails(null);
           }
         } catch (error) {
-          console.error('Error fetching user details:', error);
+          console.error('Error fetching interview details:', error);
+          sessionStorage.removeItem('interviewId');
+          sessionStorage.removeItem('userEmail');
+          setUserDetails(null);
         }
       }
       setLoading(false);
@@ -63,16 +75,10 @@ function App() {
   );
 }
 
-// Separate component to use useLocation hook
-interface AppContentProps {
-  userDetails: UserDetails | null;
-}
-
-const AppContent: React.FC<AppContentProps> = ({ userDetails }) => {
+const AppContent: React.FC<{ userDetails: UserDetails | null }> = ({ userDetails }) => {
   const location = useLocation();
 
   useEffect(() => {
-    // Track page views
     ReactGA.send({ hitType: 'pageview', page: location.pathname + location.search });
   }, [location]);
 
@@ -82,14 +88,13 @@ const AppContent: React.FC<AppContentProps> = ({ userDetails }) => {
       <Header user={userDetails} />
       <main className="flex-grow container mx-auto px-4 py-8">
         <Routes>
-          <Route path="/auth" element={!userDetails ? <Auth /> : <Navigate to="/chat" replace />} />
+          <Route 
+            path="/auth" 
+            element={!userDetails ? <Auth /> : <Navigate to="/chat" replace />} 
+          />
           <Route
             path="/chat"
             element={userDetails ? <Chat /> : <Navigate to="/auth" replace />}
-          />
-          <Route
-            path="/report/:interviewId"
-            element={userDetails ? <Report /> : <Navigate to="/auth" replace />}
           />
           <Route path="*" element={<Navigate to={userDetails ? '/chat' : '/auth'} replace />} />
         </Routes>
