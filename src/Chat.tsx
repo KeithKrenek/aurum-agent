@@ -36,6 +36,27 @@ const Chat: React.FC = () => {
     dangerouslyAllowBrowser: true
   });
 
+  const scrollToBottom = () => {
+    messageListRef.current?.scrollTo({
+      top: messageListRef.current.scrollHeight,
+      behavior: 'smooth',
+    });
+  };
+
+  useEffect(scrollToBottom, [messages]);
+
+  // Focus the textarea when the component mounts
+  useEffect(() => {
+    inputRef.current?.focus();
+  }, []);
+
+  // Refocus the textarea when the Assistant stops typing
+  useEffect(() => {
+    if (!isTyping) {
+      inputRef.current?.focus();
+    }
+  }, [isTyping]);
+
   // Helper function to manage run status
   const waitForRunCompletion = async (threadId: string, runId: string, maxAttempts = 30) => {
     let attempts = 0;
@@ -156,7 +177,7 @@ const Chat: React.FC = () => {
       }
     } catch (error) {
       console.error('Error initializing chat:', error);
-      toast.error('Failed to load interview. Please try again.');
+      toast.error('Failed to initialize chat. Please try again.');
       navigate('/');
     }
   };
@@ -166,55 +187,35 @@ const Chat: React.FC = () => {
     try {
       setIsTyping(true);
       
-      // First, ensure no active runs
       await ensureNoActiveRuns(threadId);
       
-      // Create the initial message
       const brandName = sessionStorage.getItem('brandName');
       await openai.beta.threads.messages.create(threadId, {
         role: 'user',
         content: `Hello, I'm ready to begin the brand development process for ${brandName}.`
       });
       
-      // Wait a moment before creating the run
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Create and monitor the run
       const run = await openai.beta.threads.runs.create(threadId, {
         assistant_id: config.openai.assistantId
       });
       
-      let runStatus;
-      let attempts = 0;
-      const maxAttempts = 30;
+      // Use the existing helper function instead of manual status checking
+      await waitForRunCompletion(threadId, run.id);
       
-      do {
-        if (attempts >= maxAttempts) {
-          throw new Error('Run timed out');
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 1000));
-        runStatus = await checkRunStatus(threadId, run.id);
-        attempts++;
-        
-      } while (runStatus === 'in_progress' || runStatus === 'queued');
+      const messages = await openai.beta.threads.messages.list(threadId);
+      const lastMessage = messages.data[0];
       
-      if (runStatus === 'completed') {
-        const messages = await openai.beta.threads.messages.list(threadId);
-        const lastMessage = messages.data[0];
-        
-        if (lastMessage.role === 'assistant' && lastMessage.content[0].type === 'text') {
-          const newMessage: Message = {
-            role: 'assistant',
-            content: lastMessage.content[0].text.value,
-            timestamp: new Date(),
-            phase: currentPhase
-          };
-          setMessages([newMessage]);
-          await updateInterviewMessages([newMessage]);
-        }
-      } else {
-        throw new Error(`Run failed with status: ${runStatus}`);
+      if (lastMessage.role === 'assistant' && lastMessage.content[0].type === 'text') {
+        const newMessage: Message = {
+          role: 'assistant',
+          content: lastMessage.content[0].text.value,
+          timestamp: new Date(),
+          phase: currentPhase
+        };
+        setMessages([newMessage]);
+        await updateInterviewMessages([newMessage]);
       }
       
     } catch (error) {
@@ -225,7 +226,7 @@ const Chat: React.FC = () => {
     } finally {
       setIsTyping(false);
     }
-  };
+};
 
   // Process assistant response
   const processAssistantResponse = async (threadId: string) => {
@@ -401,7 +402,7 @@ const handleReportGeneration = async (reportText: string) => {
           ))}
           {isTyping && (
             <div className="text-neutral-gray italic">
-              Assistant is typing...
+              Alchemy-ing...
             </div>
           )}
         </div>
