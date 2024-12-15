@@ -1,21 +1,8 @@
 import jsPDF from 'jspdf';
-import elementsistLogo from '../assets/stylized-logo.png';
-import smallLogo from '../assets/black-logo.png';
-import pageTwo from '../assets/page-2.png';
-
-// Import custom fonts
 import { CaslonGradReg } from './fonts/CaslonGrad-Regular.js';
 import { IbarraRealNovaBold } from './fonts/IbarraRealNova-Bold.js';
-
-// Normalize headings and adjust report structure
-function normalizeHeadingsAndStructure(sections: string[]): string {
-  return sections
-    .map((section, index) => {
-      // Add a title for each assistant's section
-      return `# Assistant ${index + 1} Report\n\n${section}`;
-    })
-    .join('\n\n');
-}
+import elementsistLogo from './assets/stylized-logo.png';
+import smallLogo from './assets/black-logo.png';
 
 interface PdfOptions {
   brandName: string;
@@ -23,13 +10,10 @@ interface PdfOptions {
 }
 
 export const generatePDF = async ({ brandName, reportParts }: PdfOptions): Promise<void> => {
-  // Normalize the headings and combine sections
-  const combinedReport = normalizeHeadingsAndStructure(reportParts);
-
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
-    format: 'a4',
+    format: 'a4'
   });
 
   // Add custom fonts
@@ -43,90 +27,99 @@ export const generatePDF = async ({ brandName, reportParts }: PdfOptions): Promi
   const margin = 50;
   const usableWidth = pageWidth - 2 * margin;
 
-  // Add logo and brand name to the first page
+  // Add cover page
   pdf.addImage(elementsistLogo, 'PNG', 0, 0, pageWidth, pageHeight);
-  pdf.setFont('helvetica', 'normal');
-  pdf.setFontSize(29);
+  pdf.setFont('IbarraRealNova-Bold', 'bold');
+  pdf.setFontSize(32);
   pdf.setTextColor(255, 255, 255);
+  
+  // Center brand name on cover
   const brandNameWidth = pdf.getTextWidth(brandName.toUpperCase());
-  const brandNameIndent = (pageWidth - brandNameWidth) / 2;
-  pdf.text(brandName.toUpperCase(), brandNameIndent, 3 * pageHeight / 4);
-  pdf.setTextColor(0, 0, 0);
+  const brandNameX = (pageWidth - brandNameWidth) / 2;
+  const brandNameY = pageHeight * 0.75;
+  pdf.text(brandName.toUpperCase(), brandNameX, brandNameY);
 
-  // Add second page graphic
+  // Add title page
   pdf.addPage();
-  pdf.addImage(pageTwo, 'PNG', 0, 0, pageWidth, pageHeight);
+  pdf.setTextColor(0, 0, 0);
+  pdf.setFont('CaslonGrad-Regular', 'normal');
+  pdf.setFontSize(24);
+  pdf.text('Brand Development Report', margin, margin + 40);
+  pdf.setFontSize(16);
+  pdf.text(new Date().toLocaleDateString('en-US', {
+    year: 'numeric',
+    month: 'long',
+    day: 'numeric'
+  }), margin, margin + 80);
 
-  // Process and add the report content
-  let yPosition = margin;
+  // Process each report section
+  reportParts.forEach((reportContent, index) => {
+    if (index > 0) pdf.addPage();
+    
+    let yPosition = margin;
+    const lines = reportContent.split('\n');
+    
+    lines.forEach(line => {
+      // Skip empty lines but add spacing
+      if (line.trim() === '') {
+        yPosition += 20;
+        return;
+      }
 
-  const addWrappedText = (
-    text: string,
-    y: number,
-    fontSize: number,
-    fontName: string = 'helvetica',
-    fontStyle: string = 'normal',
-    indent: number = 0,
-  ): number => {
-    pdf.setFontSize(fontSize);
-    pdf.setFont(fontName, fontStyle);
-    const lineHeight = fontSize * 1.5;
-    const maxWidth = usableWidth - indent;
-
-    const lines = pdf.splitTextToSize(text, maxWidth);
-    lines.forEach((line: string): void => {
-      pdf.text(line, margin + indent, y);
-      y += lineHeight;
-      if (y > pageHeight - margin) {
-        pdf.addPage();
-        y = margin;
+      // Format based on markdown heading level
+      if (line.startsWith('# ')) {
+        pdf.setFont('IbarraRealNova-Bold', 'bold');
+        pdf.setFontSize(24);
+        const text = line.replace('# ', '');
+        pdf.text(text, margin, yPosition);
+        yPosition += 40;
+      } else if (line.startsWith('## ')) {
+        pdf.setFont('IbarraRealNova-Bold', 'bold');
+        pdf.setFontSize(18);
+        const text = line.replace('## ', '');
+        pdf.text(text, margin, yPosition);
+        yPosition += 30;
+      } else {
+        // Handle regular text and bullet points
+        pdf.setFont('CaslonGrad-Regular', 'normal');
+        pdf.setFontSize(12);
+        
+        // Handle bullet points (numbered or unordered)
+        const indent = line.startsWith('- ') || /^\d+\./.test(line) ? 20 : 0;
+        
+        const wrappedText = pdf.splitTextToSize(line, usableWidth - indent);
+        wrappedText.forEach(textLine => {
+          // Check if we need to add a new page
+          if (yPosition > pageHeight - margin) {
+            pdf.addPage();
+            yPosition = margin;
+          }
+          
+          pdf.text(textLine, margin + indent, yPosition);
+          yPosition += 20;
+        });
       }
     });
+  });
 
-    return y;
-  };
-
-  const lines = combinedReport.split('\n');
-  for (let line of lines) {
-    line = line.trim();
-
-    if (line.startsWith('# ')) {
-      // Section title
-      yPosition += 20;
-      yPosition = addWrappedText(line.substring(2), yPosition, 18, 'CaslonGrad-Regular', 'normal');
-      yPosition += 10;
-    } else if (line.startsWith('## ')) {
-      // Subsection title
-      yPosition += 15;
-      yPosition = addWrappedText(line.substring(3), yPosition, 14, 'helvetica', 'bold');
-    } else if (line.startsWith('- ') || line.startsWith('* ')) {
-      // Bulleted list
-      yPosition = addWrappedText(line.substring(2), yPosition, 12, 'helvetica', 'normal', 20);
-      yPosition += 5;
-    } else if (line.match(/^\d+\.\s/)) {
-      // Numbered list
-      yPosition = addWrappedText(line, yPosition, 12, 'helvetica', 'normal', 20);
-      yPosition += 5;
-    } else if (line === '') {
-      // Empty line (add spacing)
-      yPosition += 10;
-    } else {
-      // Regular text
-      yPosition = addWrappedText(line, yPosition, 12, 'helvetica');
-      yPosition += 5;
-    }
-  }
-
-  // Add page numbers and logo to the footer
-  const pageCount = (pdf as any).internal.getNumberOfPages();
-  const logoHeight = 0.25 * margin;
-  const logoWidth = 2.34 * margin;
+  // Add footer with page numbers and logo
+  const pageCount = pdf.getNumberOfPages();
   for (let i = 1; i <= pageCount; i++) {
     pdf.setPage(i);
+    if (i === 1) continue; // Skip footer on cover page
+
+    // Add page number
+    pdf.setFont('CaslonGrad-Regular', 'normal');
     pdf.setFontSize(10);
-    pdf.text(`${i} of ${pageCount}`, margin, pageHeight - margin / 2, { align: 'left' });
-    pdf.addImage(smallLogo, 'PNG', pageWidth - logoWidth - margin, pageHeight - logoHeight - margin / 2, logoWidth, logoHeight);
+    pdf.text(`Page ${i} of ${pageCount}`, margin, pageHeight - margin/2);
+
+    // Add small logo to footer
+    const logoHeight = margin/2;
+    const logoWidth = logoHeight * 2.34; // Maintain aspect ratio
+    pdf.addImage(smallLogo, 'PNG', pageWidth - margin - logoWidth, pageHeight - margin * 0.75, logoWidth, logoHeight);
   }
 
-  pdf.save('aurum_agent_report.pdf');
+  // Save the PDF
+  const fileName = `${brandName.toLowerCase().replace(/\s+/g, '-')}-brand-report.pdf`;
+  pdf.save(fileName);
 };

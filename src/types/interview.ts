@@ -1,14 +1,11 @@
 // src/types/interview.ts
 
-type InterviewPhase = 'brand-elements' | 'messaging' | 'audience' | 'complete';
-
 export interface Interview {
-  userId: string;
-  userName: string;
-  userEmail: string;
+  brandName: string;
+  threadId: string;
   createdAt: Date;
   lastUpdated: Date;
-  currentPhase: InterviewPhase;
+  currentPhase: 'brand-elements' | 'messaging' | 'audience' | 'complete';
   messages: Message[];
   reports: {
     brandElements?: string;
@@ -16,16 +13,10 @@ export interface Interview {
     audience?: string;
   };
 }
-  
-  export interface Message {
-    role: 'user' | 'assistant';
-    content: string;
-    timestamp: Date;
-    phase: InterviewPhase;
-  }
-  
-  export interface User {
-    name: string;
-    email: string;
-    createdAt: Date;
-  }
+
+export interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  phase: 'brand-elements' | 'messaging' | 'audience' | 'complete';
+}

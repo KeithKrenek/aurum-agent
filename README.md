@@ -1,124 +1,192 @@
-# Aurum Agent - Brand Development Interview Application
+# Brand Development Interview Application
 
 ## Project Overview
 
-Aurum Agent is a web application that conducts automated brand development interviews using artificial intelligence. The application guides users through a structured interview process consisting of three phases: Core Brand Discovery, Messaging Consistency, and Audience Alignment. After completing the interview, users receive a comprehensive brand development report.
+This application facilitates automated brand development interviews using OpenAI's Assistant API. The application guides users through inputting their brand name and participating in a structured conversation with an AI brand development expert. Upon completion, users receive a comprehensive PDF report analyzing their brand's elements, messaging strategy, and audience alignment.
 
 ## Technical Architecture
 
-The application is built on a modern web stack with the following core technologies:
+The application is built using modern web technologies:
 
-- Frontend: React with TypeScript
-- State Management: React Hooks
-- UI Framework: Tailwind CSS
-- Backend: Firebase (Firestore)
-- AI Integration: OpenAI Assistants API
-- Build System: Vite
+### Core Technologies
+- React 18 with TypeScript for the frontend framework
+- Firebase (Firestore) for data persistence
+- OpenAI Assistants API for AI interaction
+- Tailwind CSS for styling
+- Vite for build tooling and development environment
 
-## Key Features
+### Key Dependencies
+- framer-motion: Animation handling
+- jsPDF: PDF report generation
+- react-hot-toast: Toast notifications
+- lucide-react: Icon components
+- react-router-dom: Navigation management
 
-The application provides a seamless user experience through several core functionalities:
+## Development Setup
 
-- Email-based user registration without authentication requirements
-- Three-phase brand development interview process
-- Automatic progress tracking and phase transitions
-- Real-time interaction with an AI brand development expert
-- PDF report generation with professional formatting
-- Google Analytics integration for usage tracking
-
-## Environment Setup
-
-The application requires several environment variables to be configured. Create a `.env` file in the project root with the following structure:
-
+1. Clone the repository and install dependencies:
+```bash
+git clone [repository-url]
+cd [project-directory]
+npm install
 ```
-# OpenAI Configuration
+
+2. Create a `.env` file in the project root with the following configuration:
+```
 VITE_OPENAI_API_KEY=your_openai_api_key
 VITE_BRAND_ASSISTANT_ID=your_assistant_id
-
-# Firebase Configuration
 VITE_FIREBASE_API_KEY=your_firebase_api_key
 VITE_FIREBASE_AUTH_DOMAIN=your_domain.firebaseapp.com
 VITE_FIREBASE_PROJECT_ID=your_project_id
 VITE_FIREBASE_STORAGE_BUCKET=your_bucket.appspot.com
 VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 VITE_FIREBASE_APP_ID=your_app_id
-VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
 ```
 
-## Database Configuration
-
-The application uses Firestore with the following security rules:
-
-```javascript
-rules_version = '2';
-service cloud.firestore {
-  match /databases/{database}/documents {
-    match /users/{userEmail} {
-      allow get: if true;
-      allow create: if request.resource.data.email == userEmail &&
-                   request.resource.data.email is string &&
-                   request.resource.data.name is string;
-    }
-    
-    match /interviews/{interviewId} {
-      allow read, write: if resource.data.userEmail == request.resource.data.userEmail;
-      allow create: if request.resource.data.userEmail is string &&
-                   request.resource.data.userName is string;
-    }
-  }
-}
+3. Start the development server:
+```bash
+npm run dev
 ```
 
-## Project Structure
+## Application Structure
 
-The application follows a modular architecture with these key components:
+### Core Components
 
-- `src/Auth.tsx`: Handles user registration and session management
-- `src/Chat.tsx`: Manages the interview process and AI interaction
-- `src/pdfGenerator.ts`: Handles PDF report generation with custom formatting
-- `src/types/interview.ts`: Contains TypeScript interfaces for data structures
-- `src/firebase.ts`: Configures Firebase integration
+1. **BrandEntry.tsx**
+   - Entry point for users
+   - Handles brand name collection
+   - Initializes interview session
 
-## Development Setup
+2. **Chat.tsx**
+   - Manages interview process
+   - Handles OpenAI Assistant interaction
+   - Controls message flow and state
 
-To begin development:
+3. **MessageBubble.tsx & MessageInput.tsx**
+   - UI components for chat interface
+   - Handles message display and input
 
-1. Clone the repository
-2. Install dependencies: `npm install`
-3. Configure environment variables
-4. Set up Firebase project and Firestore database
-5. Configure OpenAI Assistant using the provided system instructions
-6. Start development server: `npm run dev`
+4. **pdfGenerator.ts**
+   - Generates branded PDF reports
+   - Handles custom formatting and styling
 
-## Key Development Considerations
+### Data Flow
 
-Several aspects require particular attention during development:
-
-1. Phase Management: The interview process transitions through three distinct phases, each requiring specific handling of user responses and AI interaction.
-
-2. Report Generation: The application combines reports from each phase into a final PDF document with specific formatting requirements and custom fonts.
-
-3. Session Management: User sessions are managed through browser session storage rather than persistent authentication.
-
-4. Error Handling: Comprehensive error handling is implemented throughout the application, with user-friendly error messages delivered via toast notifications.
+1. User enters brand name through BrandEntry component
+2. Application creates new thread with OpenAI Assistant
+3. Chat component manages conversation flow
+4. Reports are generated at phase completion points
+5. Final PDF report combines all phase insights
 
 ## Current Development Status
 
-The application has these areas ready for continued development:
+### Implemented Features
+- Brand name entry and session initialization
+- Real-time chat interface with OpenAI Assistant
+- Progress tracking through interview phases
+- Basic report generation functionality
 
-- User registration and session management are implemented
-- Interview phase management is functional
-- Basic report generation is in place
-- Initial styling and UI components are configured
+### Known Issues
+- Occasional "active run" errors with OpenAI Assistant
+- Need for improved error handling in chat initialization
+- PDF report styling refinements needed
 
-Areas that may require attention:
+### Priority Development Areas
+1. Resolving OpenAI Assistant run management
+2. Enhancing error recovery mechanisms
+3. Improving report generation formatting
+4. Adding comprehensive testing
 
-- Enhanced error recovery during interview process
-- Expanded report formatting options
-- Additional analytics tracking
-- Performance optimization for longer interviews
-- Automated testing implementation
+## Development Guidelines
 
-## Contact Information
+### Working with OpenAI Assistant
 
-For questions about the current implementation or development requirements, please contact [Project Lead Contact Information].
+When modifying assistant interactions, follow these principles:
+1. Always check for and handle active runs before creating new ones
+2. Implement retry logic for failed operations
+3. Maintain proper error handling and user feedback
+
+Example of proper run management:
+```typescript
+const continueInterview = async (threadId: string, retryCount = 0) => {
+  try {
+    setIsTyping(true);
+    const activeRuns = await openai.beta.threads.runs.list(threadId);
+    for (const run of activeRuns.data) {
+      if (run.status === 'in_progress') {
+        await openai.beta.threads.runs.cancel(threadId, run.id);
+      }
+    }
+    // Continue with interview logic...
+  } catch (error) {
+    if (retryCount < 3) {
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return continueInterview(threadId, retryCount + 1);
+    }
+    throw error;
+  }
+};
+```
+
+### Firebase Data Structure
+
+The Firestore database uses the following structure:
+
+```typescript
+interface Interview {
+  brandName: string;
+  threadId: string;
+  createdAt: Date;
+  lastUpdated: Date;
+  currentPhase: 'brand-elements' | 'messaging' | 'audience' | 'complete';
+  messages: Message[];
+  reports: {
+    brandElements?: string;
+    messaging?: string;
+    audience?: string;
+  };
+}
+
+interface Message {
+  role: 'user' | 'assistant';
+  content: string;
+  timestamp: Date;
+  phase: string;
+}
+```
+
+## Testing
+
+The application currently lacks comprehensive testing. Priority areas for test implementation:
+
+1. Chat component interaction flows
+2. OpenAI Assistant error handling
+3. PDF report generation
+4. Database operations
+5. User input validation
+
+## Deployment
+
+The application is designed to be embedded within an existing webpage container. Key considerations:
+
+1. Ensure all environment variables are properly configured
+2. Verify OpenAI Assistant ID and system prompts
+3. Configure Firebase security rules appropriately
+4. Test PDF generation in production environment
+
+## Support and Documentation
+
+For additional support:
+- OpenAI Assistants API: https://platform.openai.com/docs/assistants
+- Firebase Documentation: https://firebase.google.com/docs
+- Project Technical Contact: [Contact Information]
+
+## Next Steps
+
+1. Review current implementation of Chat.tsx and resolve OpenAI Assistant run management issues
+2. Implement comprehensive error handling and recovery mechanisms
+3. Enhance PDF report generation with improved styling and formatting
+4. Add automated testing suite
+5. Implement monitoring and logging solutions
+
+For any questions or clarifications about this documentation, please contact [Contact Information].

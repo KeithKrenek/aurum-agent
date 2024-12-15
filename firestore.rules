@@ -1,23 +1,8 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userEmail} {
-      // Allow checking if an email exists during registration
-      allow get: if true;
-      
-      // Allow creation of new user documents with email validation
-      allow create: if request.resource.data.email == userEmail &&
-                   request.resource.data.email is string &&
-                   request.resource.data.name is string;
-    }
-    
     match /interviews/{interviewId} {
-      // Allow read and write access based on session verification
-      allow read, write: if resource.data.userEmail == request.resource.data.userEmail;
-      
-      // Allow initial interview creation
-      allow create: if request.resource.data.userEmail is string &&
-                   request.resource.data.userName is string;
+      allow read, write: if true;  // Since we're not maintaining user authentication
     }
   }
 }
