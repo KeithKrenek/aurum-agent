@@ -2,10 +2,10 @@ import React, { useState } from 'react';
 import { db } from './firebase';
 import { doc, setDoc, collection } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
+import { Loader } from 'lucide-react';
 import { OpenAI } from 'openai';
 import { config } from './config/environment';
 import toast from 'react-hot-toast';
-import { Loader } from 'lucide-react';
 
 const BrandEntry: React.FC = () => {
     const [brandName, setBrandName] = useState('');
@@ -22,7 +22,7 @@ const BrandEntry: React.FC = () => {
         setIsLoading(true);
     
         try {
-            // First create a new thread
+            // Create new OpenAI thread
             const thread = await openai.beta.threads.create();
             
             // Create interview document
