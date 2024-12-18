@@ -22,16 +22,17 @@ const BrandEntry: React.FC = () => {
         setIsLoading(true);
     
         try {
-            // Create new OpenAI thread
-            const thread = await openai.beta.threads.create();
+            if (!brandName.trim()) {
+                throw new Error('Brand name is required');
+            }
             
-            // Create interview document
+            // Create interview document in Firestore
             const interviewsCollection = collection(db, 'interviews');
             const newInterviewRef = doc(interviewsCollection);
             
             const interviewData = {
                 brandName: brandName.trim(),
-                threadId: thread.id,
+                threadId: null, // threadId to be set later in Chat.tsx
                 createdAt: new Date(),
                 lastUpdated: new Date(),
                 currentPhase: 'brand-elements',
@@ -41,9 +42,15 @@ const BrandEntry: React.FC = () => {
 
             await setDoc(newInterviewRef, interviewData);
 
-            // Store session data
+            // Store interview ID and brand name in sessionStorage
             sessionStorage.setItem('interviewId', newInterviewRef.id);
             sessionStorage.setItem('brandName', brandName.trim());
+
+            console.log('Interview created:', {
+                interviewId: newInterviewRef.id,
+                brandName: brandName.trim(),
+                threadId: null
+            });
 
             // Navigate to chat
             navigate(`/chat/${newInterviewRef.id}`);

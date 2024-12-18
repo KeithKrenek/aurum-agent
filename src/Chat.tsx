@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { db } from './firebase';
 import { doc, getDoc, updateDoc } from 'firebase/firestore';
 import toast from 'react-hot-toast';
+import { ProgressManager } from './ProgressManager';
 import { Interview, Message } from './types/interview';
 import MessageInput from './MessageInput';
 import MessageBubble from './MessageBubble';
@@ -25,12 +26,17 @@ const Chat: React.FC = () => {
   const [isTyping, setIsTyping] = useState(false);
   const [currentPhase, setCurrentPhase] = useState<'brand-elements' | 'messaging' | 'audience' | 'complete'>('brand-elements');
   const [questionCount, setQuestionCount] = useState(0);
+  const [reports, setReports] = useState<Interview['reports']>({});
   const [threadId, setThreadId] = useState<string | null>(null);
   const messageListRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const progressManager = useRef<ProgressManager | null>(null);
   const navigate = useNavigate();
-  const { interviewId } = useParams<{ interviewId: string }>();
+  const { interviewId: urlInterviewId } = useParams<{ interviewId: string }>();
 
+  // Fallback to sessionStorage
+  const interviewId = urlInterviewId || sessionStorage.getItem('interviewId');
+ 
   const openai = new OpenAI({
     apiKey: config.openai.apiKey,
     dangerouslyAllowBrowser: true
@@ -156,31 +162,53 @@ const Chat: React.FC = () => {
   // Initialize chat session
   const initializeChat = async () => {
     if (!interviewId) {
-      navigate('/');
-      return;
+        navigate('/');
+        return;
     }
 
     try {
-      const interviewDoc = await getDoc(doc(db, 'interviews', interviewId));
-      if (!interviewDoc.exists()) {
-        throw new Error('Interview not found');
-      }
+        const interviewDoc = await getDoc(doc(db, 'interviews', interviewId));
+        if (!interviewDoc.exists()) {
+            throw new Error('Interview not found');
+        }
 
-      const interviewData = interviewDoc.data() as Interview;
-      setMessages(interviewData.messages || []);
-      setCurrentPhase(interviewData.currentPhase || 'brand-elements');
-      setThreadId(interviewData.threadId);
-      setQuestionCount(interviewData.messages?.filter(m => m.role === 'user').length || 0);
+        const interviewData = interviewDoc.data() as Interview;
+        let threadId = interviewData.threadId;
 
-      if (interviewData.messages.length === 0) {
-        await startNewConversation(interviewData.threadId);
-      }
+        // If no threadId exists, create a new OpenAI thread
+        if (!threadId) {
+            const newThread = await openai.beta.threads.create();
+            threadId = newThread.id;
+
+            // Update Firestore with the new threadId
+            await updateDoc(doc(db, 'interviews', interviewId), {
+                threadId: newThread.id,
+                lastUpdated: new Date()
+            });
+        }
+
+        // Set state values
+        setThreadId(threadId);
+        setMessages(interviewData.messages || []);
+        setCurrentPhase(interviewData.currentPhase || 'brand-elements');
+        setQuestionCount(interviewData.messages?.filter(m => m.role === 'user').length || 0);
+        setReports(interviewData.reports || {});
+
+        console.log('Firestore Interview Data:', {
+          interviewId,
+          threadId: interviewData.threadId
+        });
+
+        // Auto-start the conversation if no messages exist
+        if (interviewData.messages.length === 0) {
+            await startNewConversation(threadId);
+        }
     } catch (error) {
-      console.error('Error initializing chat:', error);
-      toast.error('Failed to initialize chat. Please try again.');
-      navigate('/');
+        console.error('Error initializing chat:', error);
+        toast.error('Failed to initialize chat. Please try again.');
+        navigate('/');
     }
-  };
+};
 
   // Start new conversation
   const startNewConversation = async (threadId: string) => {
@@ -192,7 +220,7 @@ const Chat: React.FC = () => {
       const brandName = sessionStorage.getItem('brandName');
       await openai.beta.threads.messages.create(threadId, {
         role: 'user',
-        content: `Hello, I'm ready to begin the brand development process for ${brandName}.`
+        content: `Please begin the brand development process for ${brandName}.`
       });
       
       await new Promise(resolve => setTimeout(resolve, 1000));
@@ -226,35 +254,65 @@ const Chat: React.FC = () => {
     } finally {
       setIsTyping(false);
     }
-};
+  };
 
-  // Process assistant response
+  const parseAssistantResponse = (response: string) => {
+    const reportRegex = /```markdown([\s\S]*?)```/g;
+    let reportContents: string[] = [];
+    let match;
+
+    let remainingContent = response;
+
+    // Extract all report blocks
+    while ((match = reportRegex.exec(response)) !== null) {
+        reportContents.push(match[1].trim());
+        remainingContent = remainingContent.replace(match[0], '').trim(); // Remove matched block
+    }
+
+    // Replace report placeholders with user-friendly message
+    if (reportContents.length > 0) {
+        remainingContent += '\n[Please download reports from the progress ribbon above.]';
+    }
+
+    return { reportContents, remainingContent };
+  };
+
   const processAssistantResponse = async (threadId: string) => {
     try {
-      const messages = await openai.beta.threads.messages.list(threadId);
-      const lastMessage = messages.data[0];
+        const messages = await openai.beta.threads.messages.list(threadId);
+        const lastMessage = messages.data[0];
 
-      if (lastMessage.role === 'assistant' && lastMessage.content[0].type === 'text') {
-        const newMessage: Message = {
-          role: 'assistant',
-          content: lastMessage.content[0].text.value,
-          timestamp: new Date(),
-          phase: currentPhase
-        };
+        if (lastMessage.role === 'assistant' && lastMessage.content[0].type === 'text') {
+            const rawContent = lastMessage.content[0].text.value;
 
-        if (lastMessage.content[0].text.value.includes('# Brand')) {
-          await handleReportGeneration(lastMessage.content[0].text.value);
+            // Parse response
+            const { reportContents, remainingContent } = parseAssistantResponse(rawContent);
+
+            // Handle multiple report contents
+            for (const [index, reportContent] of reportContents.entries()) {
+                console.log(`Report ${index + 1} detected, saving and skipping display.`);
+                await handleReportGeneration(reportContent);
+            }
+
+            // Add remaining content to chat messages
+            if (remainingContent) {
+                const newMessage: Message = {
+                    role: 'assistant',
+                    content: remainingContent,
+                    timestamp: new Date(),
+                    phase: currentPhase
+                };
+
+                setMessages(prev => {
+                    const updated = [...prev, newMessage];
+                    updateInterviewMessages(updated);
+                    return updated;
+                });
+            }
         }
-
-        setMessages(prev => {
-          const updated = [...prev, newMessage];
-          updateInterviewMessages(updated);
-          return updated;
-        });
-      }
     } catch (error) {
-      console.error('Error processing assistant response:', error);
-      throw error;
+        console.error('Error processing assistant response:', error);
+        throw error;
     }
   };
 
@@ -320,86 +378,79 @@ const Chat: React.FC = () => {
     return phases[currentIndex + 1] as 'messaging' | 'audience' | 'complete' | null;
   };
 
-const handleReportGeneration = async (reportText: string) => {
+  const handleReportGeneration = async (reportText: string) => {
     try {
-      // Get the stored brand name
-      const brandName = sessionStorage.getItem('brandName');
-      if (!brandName) {
-        throw new Error('Brand name not found');
-      }
-  
-      // Save report to Firebase
-      await updateDoc(doc(db, 'interviews', interviewId!), {
-        [`reports.${currentPhase}`]: reportText,
-        lastUpdated: new Date()
-      });
-  
-      // Generate PDF for the current phase
-      await generatePDF({
-        brandName,
-        reportParts: [reportText]
-      });
-  
-      // Handle phase transition
-      const nextPhase = getNextPhase(currentPhase);
-      if (nextPhase) {
-        setCurrentPhase(nextPhase);
+        const brandName = sessionStorage.getItem('brandName');
+        if (!brandName) throw new Error('Brand name not found');
+
+        // Save the report to Firestore
         await updateDoc(doc(db, 'interviews', interviewId!), {
-          currentPhase: nextPhase
+            [`reports.${currentPhase}`]: reportText,
+            lastUpdated: new Date()
         });
-      } else {
-        // For final report, combine all phase reports
-        const interviewDoc = await getDoc(doc(db, 'interviews', interviewId!));
-        const interview = interviewDoc.data() as Interview;
-        
-        // Generate comprehensive final report
-        await generatePDF({
-          brandName,
-          reportParts: [
-            interview.reports.brandElements,
-            interview.reports.messaging,
-            interview.reports.audience,
-            reportText // Include final summary
-          ].filter(Boolean)
-        });
-  
-        // Mark interview as complete
-        await updateDoc(doc(db, 'interviews', interviewId!), {
-          currentPhase: 'complete',
-          lastUpdated: new Date()
-        });
-        
-        toast.success('Brand development journey completed! Your report has been generated.');
-        navigate('/');
-      }
+
+        // Update local state
+        setReports(prevReports => ({
+            ...prevReports,
+            [currentPhase]: reportText
+        }));
+
+        // Check if final phase
+        if (currentPhase === 'audience') {
+            setCurrentPhase('complete');
+            await updateDoc(doc(db, 'interviews', interviewId!), {
+                currentPhase: 'complete',
+                lastUpdated: new Date()
+            });
+
+            // Add a final instructional message
+            const finalMessage: Message = {
+                role: 'assistant',
+                content: 'All phases are complete. Please download your final brand report from the progress ribbon above.',
+                timestamp: new Date(),
+                phase: 'complete'
+            };
+            setMessages(prev => [...prev, finalMessage]);
+            await updateInterviewMessages([...messages, finalMessage]);
+        }
     } catch (error) {
-      console.error('Error handling report:', error);
-      toast.error('Failed to generate report. Please try again.');
+        console.error('Error handling report:', error);
+        toast.error('Failed to save report. Please try again.');
     }
   };
 
   useEffect(() => {
+    if (!interviewId) {
+        toast.error('Session expired. Please restart your brand development journey.');
+        navigate('/');
+        return;
+    }
+
+    progressManager.current = new ProgressManager();
     initializeChat();
-  }, []);
+  }, [interviewId]);
 
   return (
     <div className="flex flex-col h-full bg-white">
-      <main className="flex-grow overflow-hidden p-6 bg-white-smoke">
-        <div className="mb-4">
-          <PhaseProgress 
-            currentPhase={currentPhase} 
-            questionCount={questionCount} 
-            totalQuestions={PHASE_QUESTIONS[currentPhase]} 
-          />
-        </div>
+      <PhaseProgress 
+        currentPhase={currentPhase}
+        questionCount={questionCount}
+        totalQuestions={PHASE_QUESTIONS[currentPhase]}
+        reports={reports}
+        brandName={sessionStorage.getItem('brandName') || ''}
+      />
+      
+      <main className="flex-grow overflow-hidden p-6 bg-white-smoke mt-20">
         <div ref={messageListRef} className="h-full overflow-y-auto pr-4 pb-4 space-y-4">
-          {messages.map((message, index) => (
-            <MessageBubble 
-              key={index} 
-              message={message} 
-              isLast={index === messages.length - 1} 
-            />
-          ))}
+        {messages.map((message, index) => (
+          <MessageBubble
+              key={index}
+              message={message}
+              isLast={index === messages.length - 1}
+              brandName={sessionStorage.getItem('brandName') || ''}
+              reportContent={reports.complete || null} // Pass the final report content
+          />
+        ))}
           {isTyping && (
             <div className="text-neutral-gray italic">
               Alchemy-ing...
@@ -407,6 +458,7 @@ const handleReportGeneration = async (reportText: string) => {
           )}
         </div>
       </main>
+      
       <MessageInput 
         input={input}
         setInput={setInput}

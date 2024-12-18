@@ -7,9 +7,80 @@ import smallLogo from './assets/black-logo.png';
 interface PdfOptions {
   brandName: string;
   reportParts: string[];
+  phaseName: string; // New parameter for dynamic naming
 }
 
-export const generatePDF = async ({ brandName, reportParts }: PdfOptions): Promise<void> => {
+// Process text with bold headings and inline bold content
+const processTextLine = (
+  pdf: jsPDF,
+  line: string,
+  x: number,
+  y: number,
+  usableWidth: number
+): { y: number; newPage: boolean } => {
+  const heading1Regex = /^# (.*)/; // Top-level heading
+  const heading2Regex = /^## (.*)/; // Sub-level heading
+  const boldTextRegex = /\*\*(.*?)\*\*/g;
+
+  let newPage = false;
+
+  // Top-level heading
+  if (heading1Regex.test(line)) {
+    pdf.setFont('CaslonGrad-Regular', 'normal');
+    pdf.setFontSize(24);
+    const text = line.match(heading1Regex)?.[1] || '';
+    pdf.text(text, x, y);
+    return { y: y + 40, newPage };
+  }
+
+  // Sub-level heading
+  if (heading2Regex.test(line)) {
+    pdf.setFont('CaslonGrad-Regular', 'normal');
+    pdf.setFontSize(18);
+    const text = line.match(heading2Regex)?.[1] || '';
+    pdf.text(text, x, y);
+    return { y: y + 30, newPage };
+  }
+
+  // Regular text with inline bold content
+  pdf.setFont('helvetica', 'normal');
+  pdf.setFontSize(12);
+
+  const wrappedLines = pdf.splitTextToSize(line, usableWidth);
+  wrappedLines.forEach(wrappedLine => {
+    let currentX = x;
+    let currentFont = 'normal';
+
+    const segments = wrappedLine.split(boldTextRegex);
+
+    segments.forEach((segment, index) => {
+      if (index % 2 === 1) {
+        // Bold text
+        pdf.setFont('helvetica', 'bold');
+        currentFont = 'bold';
+      } else {
+        // Regular text
+        pdf.setFont('helvetica', 'normal');
+        currentFont = 'normal';
+      }
+      pdf.text(segment, currentX, y);
+      currentX += pdf.getTextWidth(segment) + 2; // Increment X for inline text
+    });
+
+    // Reset font after line
+    pdf.setFont('helvetica', currentFont);
+    y += 20;
+
+    // Check for page overflow
+    if (y > pdf.internal.pageSize.height - 50) {
+      newPage = true;
+    }
+  });
+
+  return { y, newPage };
+};
+
+export const generatePDF = async ({ brandName, reportParts, phaseName }: PdfOptions): Promise<void> => {
   const pdf = new jsPDF({
     orientation: 'portrait',
     unit: 'pt',
@@ -32,72 +103,31 @@ export const generatePDF = async ({ brandName, reportParts }: PdfOptions): Promi
   pdf.setFont('IbarraRealNova-Bold', 'bold');
   pdf.setFontSize(32);
   pdf.setTextColor(255, 255, 255);
-  
-  // Center brand name on cover
-  const brandNameWidth = pdf.getTextWidth(brandName.toUpperCase());
-  const brandNameX = (pageWidth - brandNameWidth) / 2;
-  const brandNameY = pageHeight * 0.75;
-  pdf.text(brandName.toUpperCase(), brandNameX, brandNameY);
 
-  // Add title page
+  const brandNameWidth = pdf.getTextWidth(brandName.toUpperCase());
+  pdf.text(brandName.toUpperCase(), (pageWidth - brandNameWidth) / 2, pageHeight * 0.75);
+
+  // Start content on a new page
   pdf.addPage();
   pdf.setTextColor(0, 0, 0);
-  pdf.setFont('CaslonGrad-Regular', 'normal');
-  pdf.setFontSize(24);
-  pdf.text('Brand Development Report', margin, margin + 40);
-  pdf.setFontSize(16);
-  pdf.text(new Date().toLocaleDateString('en-US', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric'
-  }), margin, margin + 80);
 
-  // Process each report section
+  // Process each report part
   reportParts.forEach((reportContent, index) => {
-    if (index > 0) pdf.addPage();
-    
     let yPosition = margin;
-    const lines = reportContent.split('\n');
-    
-    lines.forEach(line => {
-      // Skip empty lines but add spacing
-      if (line.trim() === '') {
-        yPosition += 20;
-        return;
-      }
 
-      // Format based on markdown heading level
-      if (line.startsWith('# ')) {
-        pdf.setFont('IbarraRealNova-Bold', 'bold');
-        pdf.setFontSize(24);
-        const text = line.replace('# ', '');
-        pdf.text(text, margin, yPosition);
-        yPosition += 40;
-      } else if (line.startsWith('## ')) {
-        pdf.setFont('IbarraRealNova-Bold', 'bold');
-        pdf.setFontSize(18);
-        const text = line.replace('## ', '');
-        pdf.text(text, margin, yPosition);
-        yPosition += 30;
-      } else {
-        // Handle regular text and bullet points
-        pdf.setFont('CaslonGrad-Regular', 'normal');
-        pdf.setFontSize(12);
-        
-        // Handle bullet points (numbered or unordered)
-        const indent = line.startsWith('- ') || /^\d+\./.test(line) ? 20 : 0;
-        
-        const wrappedText = pdf.splitTextToSize(line, usableWidth - indent);
-        wrappedText.forEach(textLine => {
-          // Check if we need to add a new page
-          if (yPosition > pageHeight - margin) {
-            pdf.addPage();
-            yPosition = margin;
-          }
-          
-          pdf.text(textLine, margin + indent, yPosition);
-          yPosition += 20;
-        });
+    // Add a new page for each report part
+    if (index > 0) {
+      pdf.addPage();
+    }
+
+    const lines = reportContent.split('\n');
+    lines.forEach(line => {
+      const { y, newPage } = processTextLine(pdf, line, margin, yPosition, usableWidth);
+      yPosition = y;
+
+      if (newPage) {
+        pdf.addPage();
+        yPosition = margin;
       }
     });
   });
@@ -108,18 +138,17 @@ export const generatePDF = async ({ brandName, reportParts }: PdfOptions): Promi
     pdf.setPage(i);
     if (i === 1) continue; // Skip footer on cover page
 
-    // Add page number
-    pdf.setFont('CaslonGrad-Regular', 'normal');
+    pdf.setFont('helvetica', 'normal');
     pdf.setFontSize(10);
-    pdf.text(`Page ${i} of ${pageCount}`, margin, pageHeight - margin/2);
+    pdf.text(`Page ${i} of ${pageCount}`, margin, pageHeight - margin / 2);
 
-    // Add small logo to footer
-    const logoHeight = margin/2;
-    const logoWidth = logoHeight * 2.34; // Maintain aspect ratio
+    const logoHeight = margin / 2;
+    const logoWidth = logoHeight * 2.34;
     pdf.addImage(smallLogo, 'PNG', pageWidth - margin - logoWidth, pageHeight - margin * 0.75, logoWidth, logoHeight);
   }
 
-  // Save the PDF
-  const fileName = `${brandName.toLowerCase().replace(/\s+/g, '-')}-brand-report.pdf`;
+  // Save the PDF with dynamic phase-based name
+  const sanitizedPhaseName = phaseName.toLowerCase().replace(/\s+/g, '-');
+  const fileName = `${brandName.toLowerCase().replace(/\s+/g, '-')}-${sanitizedPhaseName}-report.pdf`;
   pdf.save(fileName);
 };
