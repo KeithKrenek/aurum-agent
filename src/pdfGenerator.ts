@@ -3,7 +3,7 @@ import { CaslonGradReg } from './fonts/CaslonGrad-Regular.js';
 import { IbarraRealNovaBold } from './fonts/IbarraRealNova-Bold.js';
 import titlepage from './assets/bam-spark-1.png';
 import secondpage from './assets/bam-spark-2.png';
-import smallLogo from './assets/black-logo.png';
+// import smallLogo from './assets/black-logo.png';
 
 interface PdfOptions {
   brandName: string;
@@ -48,13 +48,13 @@ const processTextLine = (
   pdf.setFontSize(12);
 
   const wrappedLines = pdf.splitTextToSize(line, usableWidth);
-  wrappedLines.forEach(wrappedLine => {
+  wrappedLines.forEach((wrappedLine: string) => {
     let currentX = x;
     let currentFont = 'normal';
 
     const segments = wrappedLine.split(boldTextRegex);
 
-    segments.forEach((segment, index) => {
+    segments.forEach((segment: string, index: number) => {
       if (index % 2 === 1) {
         // Bold text
         pdf.setFont('helvetica', 'bold');

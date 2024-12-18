@@ -10,7 +10,6 @@ import MessageInput from './MessageInput';
 import MessageBubble from './MessageBubble';
 import PhaseProgress from './PhaseProgress';
 import { config } from './config/environment';
-import { generatePDF } from './pdfGenerator';
 
 const PHASE_QUESTIONS = {
   'discovery': 3,

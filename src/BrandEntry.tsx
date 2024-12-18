@@ -3,19 +3,12 @@ import { db } from './firebase';
 import { doc, setDoc, collection } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 import { Loader } from 'lucide-react';
-import { OpenAI } from 'openai';
-import { config } from './config/environment';
 import toast from 'react-hot-toast';
 
 const BrandEntry: React.FC = () => {
     const [brandName, setBrandName] = useState('');
     const [isLoading, setIsLoading] = useState(false);
     const navigate = useNavigate();
-
-    const openai = new OpenAI({
-        apiKey: config.openai.apiKey,
-        dangerouslyAllowBrowser: true
-    });
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();

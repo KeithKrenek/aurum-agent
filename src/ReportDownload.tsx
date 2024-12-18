@@ -4,13 +4,11 @@ import toast from 'react-hot-toast';
 
 interface ReportDownloadProps {
   phase: string;
-  brandName: string;
   onDownload: () => Promise<void>;
 }
 
 const ReportDownload: React.FC<ReportDownloadProps> = ({
   phase,
-  brandName,
   onDownload
 }) => {
   const [isDownloading, setIsDownloading] = useState(false);

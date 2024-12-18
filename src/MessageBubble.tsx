@@ -15,7 +15,7 @@ interface MessageBubbleProps {
   reportContent: string | null;
 }
 
-const MessageBubble: React.FC<MessageBubbleProps> = ({ message, isLast }) => {
+const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isAssistant = message.role === 'assistant';
   const parsedContent = marked.parse(message.content, {
     breaks: true, // Convert newlines into <br> tags
