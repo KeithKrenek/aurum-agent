@@ -396,7 +396,7 @@ const Chat: React.FC = () => {
         [currentPhase]: reportText,
       };
 
-      console.log(updatedReports);
+      // console.log(updatedReports);
   
       // Determine the next phase
       const nextPhase = getNextPhase(currentPhase);
