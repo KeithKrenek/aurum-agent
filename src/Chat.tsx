@@ -13,7 +13,7 @@ import { config } from './config/environment';
 import { generatePDF } from './pdfGenerator';
 
 const PHASE_QUESTIONS = {
-  'brand-elements': 3,
+  'discovery': 3,
   'messaging': 3,
   'audience': 3,
   'complete': 0
@@ -24,7 +24,7 @@ const Chat: React.FC = () => {
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [isTyping, setIsTyping] = useState(false);
-  const [currentPhase, setCurrentPhase] = useState<'brand-elements' | 'messaging' | 'audience' | 'complete'>('brand-elements');
+  const [currentPhase, setCurrentPhase] = useState<'discovery' | 'messaging' | 'audience' | 'complete'>('discovery');
   const [questionCount, setQuestionCount] = useState(0);
   const [reports, setReports] = useState<Interview['reports']>({});
   const [threadId, setThreadId] = useState<string | null>(null);
@@ -190,7 +190,7 @@ const Chat: React.FC = () => {
         // Set state values
         setThreadId(threadId);
         setMessages(interviewData.messages || []);
-        setCurrentPhase(interviewData.currentPhase || 'brand-elements');
+        setCurrentPhase(interviewData.currentPhase || 'discovery');
         setQuestionCount(interviewData.messages?.filter(m => m.role === 'user').length || 0);
         setReports(interviewData.reports || {});
 
@@ -266,13 +266,13 @@ const Chat: React.FC = () => {
     // Extract all report blocks
     while ((match = reportRegex.exec(response)) !== null) {
         reportContents.push(match[1].trim());
-        remainingContent = remainingContent.replace(match[0], '').trim(); // Remove matched block
+        remainingContent = remainingContent.replace(match[0], '   ---   ').trim(); // Remove matched block
     }
 
     // Replace report placeholders with user-friendly message
-    if (reportContents.length > 0) {
-        remainingContent += '\n[Please download reports from the progress ribbon above.]';
-    }
+    // if (reportContents.length > 0) {
+    //     remainingContent += '\n[Please download reports from the progress ribbon above.]';
+    // }
 
     return { reportContents, remainingContent };
   };
@@ -373,51 +373,64 @@ const Chat: React.FC = () => {
   };
 
   const getNextPhase = (current: string): 'messaging' | 'audience' | 'complete' | null => {
-    const phases = ['brand-elements', 'messaging', 'audience', 'complete'];
+    const phases = ['discovery', 'messaging', 'audience', 'complete'];
     const currentIndex = phases.indexOf(current);
     return phases[currentIndex + 1] as 'messaging' | 'audience' | 'complete' | null;
   };
 
   const handleReportGeneration = async (reportText: string) => {
     try {
-        const brandName = sessionStorage.getItem('brandName');
-        if (!brandName) throw new Error('Brand name not found');
+      if (!interviewId) throw new Error('Interview ID not found');
+      const interviewRef = doc(db, 'interviews', interviewId);
+  
+      // Fetch the current interview document
+      const interviewDoc = await getDoc(interviewRef);
+      if (!interviewDoc.exists()) throw new Error('Interview not found');
+  
+      const interviewData = interviewDoc.data() as Interview;
+      const currentReports = interviewData.reports || {};
+  
+      // Save the report for the current phase
+      const updatedReports = {
+        ...currentReports,
+        [currentPhase]: reportText,
+      };
 
-        // Save the report to Firestore
-        await updateDoc(doc(db, 'interviews', interviewId!), {
-            [`reports.${currentPhase}`]: reportText,
-            lastUpdated: new Date()
-        });
-
-        // Update local state
-        setReports(prevReports => ({
-            ...prevReports,
-            [currentPhase]: reportText
-        }));
-
-        // Check if final phase
-        if (currentPhase === 'audience') {
-            setCurrentPhase('complete');
-            await updateDoc(doc(db, 'interviews', interviewId!), {
-                currentPhase: 'complete',
-                lastUpdated: new Date()
-            });
-
-            // Add a final instructional message
-            const finalMessage: Message = {
-                role: 'assistant',
-                content: 'All phases are complete. Please download your final brand report from the progress ribbon above.',
-                timestamp: new Date(),
-                phase: 'complete'
-            };
-            setMessages(prev => [...prev, finalMessage]);
-            await updateInterviewMessages([...messages, finalMessage]);
-        }
+      console.log(updatedReports);
+  
+      // Determine the next phase
+      const nextPhase = getNextPhase(currentPhase);
+  
+      // Update Firestore with the new report and (if applicable) the next phase
+      await updateDoc(interviewRef, {
+        reports: updatedReports,
+        currentPhase: nextPhase || 'complete',
+        lastUpdated: new Date(),
+      });
+  
+      // Update local state
+      setReports(updatedReports);
+      if (nextPhase) {
+        setCurrentPhase(nextPhase);
+      } else {
+        setCurrentPhase('complete');
+        const finalMessage: Message = {
+          role: 'assistant',
+          content: 'All phases are complete. Please download your reports from the progress ribbon above.',
+          timestamp: new Date(),
+          phase: 'complete',
+        };
+        setMessages((prev) => [...prev, finalMessage]);
+        await updateInterviewMessages([...messages, finalMessage]);
+      }
+  
+      toast.success('Report generated and saved successfully!');
     } catch (error) {
-        console.error('Error handling report:', error);
-        toast.error('Failed to save report. Please try again.');
+      console.error('Error handling report generation:', error);
+      toast.error('Failed to save report. Please try again.');
     }
   };
+  
 
   useEffect(() => {
     if (!interviewId) {
@@ -453,7 +466,7 @@ const Chat: React.FC = () => {
         ))}
           {isTyping && (
             <div className="text-neutral-gray italic">
-              Alchemy-ing...
+              Transforming...
             </div>
           )}
         </div>

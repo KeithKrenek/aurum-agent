@@ -138,12 +138,13 @@ interface Interview {
   threadId: string;
   createdAt: Date;
   lastUpdated: Date;
-  currentPhase: 'brand-elements' | 'messaging' | 'audience' | 'complete';
+  currentPhase: 'discovery' | 'messaging' | 'audience' | 'complete';
   messages: Message[];
   reports: {
-    brandElements?: string;
+    discovery?: string;
     messaging?: string;
     audience?: string;
+    complete?: string;
   };
 }
 

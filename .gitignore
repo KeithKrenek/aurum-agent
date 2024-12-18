@@ -41,5 +41,11 @@ build
 *.sln
 *.sw?
 
+# Firebase
+firebase.json
+firestore.indexes.json
+firestore.rules
+.firebaserc
+
 # Vercel
 .vercel

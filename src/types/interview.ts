@@ -5,18 +5,24 @@ export interface Interview {
   threadId: string;
   createdAt: Date;
   lastUpdated: Date;
-  currentPhase: 'brand-elements' | 'messaging' | 'audience' | 'complete';
+  currentPhase: PhaseId;
   messages: Message[];
-  reports: {
-    brandElements?: string;
-    messaging?: string;
-    audience?: string;
-  };
+  reports: Reports;
+}
+
+export type PhaseId = 'discovery' | 'messaging' | 'audience' | 'complete';
+
+export interface Reports {
+  discovery?: string;
+  messaging?: string;
+  audience?: string;
+  complete?: string;
+  [key: string]: string | undefined;
 }
 
 export interface Message {
   role: 'user' | 'assistant';
   content: string;
   timestamp: Date;
-  phase: 'brand-elements' | 'messaging' | 'audience' | 'complete';
+  phase: PhaseId;
 }

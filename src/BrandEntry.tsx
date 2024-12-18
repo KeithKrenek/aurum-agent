@@ -35,7 +35,7 @@ const BrandEntry: React.FC = () => {
                 threadId: null, // threadId to be set later in Chat.tsx
                 createdAt: new Date(),
                 lastUpdated: new Date(),
-                currentPhase: 'brand-elements',
+                currentPhase: 'discovery',
                 messages: [],
                 reports: {}
             };
@@ -66,7 +66,7 @@ const BrandEntry: React.FC = () => {
     return (
         <div className="max-w-md mx-auto mt-6 p-4 bg-white rounded-lg shadow-lg">
             <h1 className="text-3xl font-extrabold mb-6 text-center text-black">
-                Brand Development Journey
+                Aurum Agent
             </h1>
             
             <form onSubmit={handleSubmit} className="space-y-4">

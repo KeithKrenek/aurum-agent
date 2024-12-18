@@ -1,7 +1,8 @@
 import jsPDF from 'jspdf';
 import { CaslonGradReg } from './fonts/CaslonGrad-Regular.js';
 import { IbarraRealNovaBold } from './fonts/IbarraRealNova-Bold.js';
-import elementsistLogo from './assets/stylized-logo.png';
+import titlepage from './assets/bam-spark-1.png';
+import secondpage from './assets/bam-spark-2.png';
 import smallLogo from './assets/black-logo.png';
 
 interface PdfOptions {
@@ -99,13 +100,17 @@ export const generatePDF = async ({ brandName, reportParts, phaseName }: PdfOpti
   const usableWidth = pageWidth - 2 * margin;
 
   // Add cover page
-  pdf.addImage(elementsistLogo, 'PNG', 0, 0, pageWidth, pageHeight);
+  pdf.addImage(titlepage, 'PNG', 0, 0, pageWidth, pageHeight);
   pdf.setFont('IbarraRealNova-Bold', 'bold');
   pdf.setFontSize(32);
   pdf.setTextColor(255, 255, 255);
 
   const brandNameWidth = pdf.getTextWidth(brandName.toUpperCase());
-  pdf.text(brandName.toUpperCase(), (pageWidth - brandNameWidth) / 2, pageHeight * 0.75);
+  pdf.text(brandName.toUpperCase(), (pageWidth - brandNameWidth) / 2, pageHeight * 0.9);
+
+  // Add second page
+  pdf.addPage();
+  pdf.addImage(secondpage, 'PNG', 0, 0, pageWidth, pageHeight);
 
   // Start content on a new page
   pdf.addPage();
@@ -133,19 +138,19 @@ export const generatePDF = async ({ brandName, reportParts, phaseName }: PdfOpti
   });
 
   // Add footer with page numbers and logo
-  const pageCount = pdf.getNumberOfPages();
-  for (let i = 1; i <= pageCount; i++) {
-    pdf.setPage(i);
-    if (i === 1) continue; // Skip footer on cover page
+  // const pageCount = pdf.getNumberOfPages();
+  // for (let i = 1; i <= pageCount; i++) {
+  //   pdf.setPage(i);
+  //   if (i === 1) continue; // Skip footer on cover page
 
-    pdf.setFont('helvetica', 'normal');
-    pdf.setFontSize(10);
-    pdf.text(`Page ${i} of ${pageCount}`, margin, pageHeight - margin / 2);
+  //   pdf.setFont('helvetica', 'normal');
+  //   pdf.setFontSize(10);
+  //   pdf.text(`Page ${i} of ${pageCount}`, margin, pageHeight - margin / 2);
 
-    const logoHeight = margin / 2;
-    const logoWidth = logoHeight * 2.34;
-    pdf.addImage(smallLogo, 'PNG', pageWidth - margin - logoWidth, pageHeight - margin * 0.75, logoWidth, logoHeight);
-  }
+  //   const logoHeight = margin / 2;
+  //   const logoWidth = logoHeight * 2.34;
+  //   pdf.addImage(smallLogo, 'PNG', pageWidth - margin - logoWidth, pageHeight - margin * 0.75, logoWidth, logoHeight);
+  // }
 
   // Save the PDF with dynamic phase-based name
   const sanitizedPhaseName = phaseName.toLowerCase().replace(/\s+/g, '-');
