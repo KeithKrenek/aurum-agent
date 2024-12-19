@@ -35,5 +35,5 @@ export default {
       },
     },
     variants: {},
-    plugins: [require('@tailwindcss/typography')],
+    plugins: [],
 };
