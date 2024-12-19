@@ -20,9 +20,18 @@ export default {
           'caslon': ['Caslon Grad', 'serif'],
           'body': ['Helvetica', 'Arial', 'sans-serif'],
         },
+        typography: (theme) => ({
+            DEFAULT: {
+                css: {
+                    p: {
+                        marginTop: theme('spacing.4'), // Add margin above each paragraph
+                        marginBottom: theme('spacing.4'), // Add margin below each paragraph
+                    },
+                },
+            },
+        }),
       },
     },
     variants: {},
-    plugins: [],
-  };
-  
+    plugins: [require('@tailwindcss/typography')],
+};

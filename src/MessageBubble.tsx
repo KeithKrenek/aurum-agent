@@ -8,6 +8,19 @@ import { motion } from 'framer-motion';
 import { Message } from './types/interview';
 import { marked } from 'marked';
 
+// Create a custom renderer
+const renderer = new marked.Renderer();
+
+// Override the line break behavior
+renderer.br = () => '<br/><br/>';
+
+// Apply the custom renderer to marked
+marked.use({
+  renderer,
+  breaks: true, // Interpret single newlines as breaks
+  gfm: true,    // Enable GitHub Flavored Markdown
+});
+
 interface MessageBubbleProps {
   message: Message;
   isLast: boolean;
@@ -17,10 +30,8 @@ interface MessageBubbleProps {
 
 const MessageBubble: React.FC<MessageBubbleProps> = ({ message }) => {
   const isAssistant = message.role === 'assistant';
-  const parsedContent = marked.parse(message.content, {
-    breaks: true, // Convert newlines into <br> tags
-    gfm: true,    // Enable GitHub Flavored Markdown
-  });
+  const parsedContent = marked.parse(message.content);
+  
 
   return (
     <motion.div

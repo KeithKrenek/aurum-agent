@@ -6,13 +6,9 @@ import { Download, Check, Loader } from 'lucide-react';
 import { generatePDF } from './pdfGenerator';
 import toast from 'react-hot-toast';
 import { PhaseId, Reports } from './types/interview';
+import { PhaseConfig } from './ProgressManager';
+import { PREDEFINED_QUESTIONS } from './types/constants';
 
-const PHASE_QUESTIONS = {
-  'discovery': 3,
-  'messaging': 3,
-  'audience': 3,
-  'complete': 0
-} as const;
 
 interface PhaseProgressProps {
   currentPhase: PhaseId;
@@ -30,11 +26,26 @@ const PhaseProgress: React.FC<PhaseProgressProps> = ({
 }) => {
   const [downloadingPhase, setDownloadingPhase] = useState<string | null>(null);
 
-  const phases = [
-    { id: 'discovery', label: 'Discovery' },
-    { id: 'messaging', label: 'Messaging' },
-    { id: 'audience', label: 'Audience' }
-  ];
+  const phases: PhaseConfig[] = [
+    {
+      id: 'discovery',
+      label: 'Discovery',
+      subPhases: 3,
+      reportRequired: true,
+    },
+    {
+      id: 'messaging',
+      label: 'Messaging',
+      subPhases: 3,
+      reportRequired: true,
+    },
+    {
+      id: 'audience',
+      label: 'Audience',
+      subPhases: 3,
+      reportRequired: true,
+    },
+  ];  
 
   const hasReport = (phaseId: string): boolean => {
     return Boolean(reports && reports[phaseId]);
@@ -64,18 +75,15 @@ const PhaseProgress: React.FC<PhaseProgressProps> = ({
     }
   };
 
-  const calculateProgress = (phase: PhaseId, count: number): number => {
-    const phaseIndex = phases.findIndex(p => p.id === phase);
-    if (phaseIndex === -1) return 100;
-  
-    const completedPhasesProgress = (phaseIndex * 100) / phases.length;
-    const currentPhaseProgress = (count / PHASE_QUESTIONS[phase]) * (100 / phases.length);
-  
-    return Math.min(completedPhasesProgress + currentPhaseProgress, 100);
-  };
-
   const currentPhaseIndex = phases.findIndex(phase => phase.id === currentPhase);
-  const progress = calculateProgress(currentPhase, questionCount);
+  // const progress = calculateProgress(phases, currentPhase, questionCount);
+  const totalQuestions = PREDEFINED_QUESTIONS.length;
+  const progressPercentage = ((questionCount) / totalQuestions) * 100;
+
+  console.log('Current phase:', currentPhase);
+  console.log('Current phase index:', currentPhaseIndex);
+  console.log('Question:', questionCount);
+  console.log('Progress:', progressPercentage);
 
   return (
     <div className="fixed top-0 left-0 right-0 bg-white z-50 shadow-md">
@@ -127,7 +135,7 @@ const PhaseProgress: React.FC<PhaseProgressProps> = ({
           <motion.div
             className="h-2 rounded-full bg-desert-sand"
             initial={{ width: 0 }}
-            animate={{ width: `${progress}%` }}
+            animate={{ width: `${progressPercentage}%` }}
             transition={{ duration: 0.5 }}
           />
         </div>

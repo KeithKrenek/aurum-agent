@@ -10,13 +10,10 @@ import MessageInput from './MessageInput';
 import MessageBubble from './MessageBubble';
 import PhaseProgress from './PhaseProgress';
 import { config } from './config/environment';
+import { PREDEFINED_QUESTIONS } from './types/constants';
 
-const PHASE_QUESTIONS = {
-  'discovery': 3,
-  'messaging': 3,
-  'audience': 3,
-  'complete': 0
-};
+const normalizeText = (text: string): string =>
+  text.trim().toLowerCase().replace(/\s+/g, ' ');
 
 const Chat: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
@@ -32,6 +29,7 @@ const Chat: React.FC = () => {
   const progressManager = useRef<ProgressManager | null>(null);
   const navigate = useNavigate();
   const { interviewId: urlInterviewId } = useParams<{ interviewId: string }>();
+  const inputBoxRef = useRef<HTMLDivElement>(null);
 
   // Fallback to sessionStorage
   const interviewId = urlInterviewId || sessionStorage.getItem('interviewId');
@@ -50,6 +48,21 @@ const Chat: React.FC = () => {
 
   useEffect(scrollToBottom, [messages]);
 
+  const adjustMessageListPadding = () => {
+    if (inputBoxRef.current) {
+      const inputHeight = inputBoxRef.current.offsetHeight;
+      messageListRef.current?.style.setProperty('padding-bottom', `${inputHeight + 20}px`);
+    }
+  };
+  
+  useEffect(() => {
+    adjustMessageListPadding();
+  }, [input, messages]);
+
+  useEffect(() => {
+    scrollToBottom();
+  }, [input]);
+
   // Focus the textarea when the component mounts
   useEffect(() => {
     inputRef.current?.focus();
@@ -61,6 +74,24 @@ const Chat: React.FC = () => {
       inputRef.current?.focus();
     }
   }, [isTyping]);
+
+  // Update question count based on Assistant messages
+  const updateQuestionCount = (messages: Message[]) => {
+    const askedQuestions = new Set<string>(); // Use a Set to track unique questions
+
+    messages
+      .filter(m => m.role === 'assistant') // Only process Assistant's messages
+      .forEach(m => {
+        const normalizedContent = normalizeText(m.content);
+        PREDEFINED_QUESTIONS.forEach(q => {
+          if (normalizedContent.includes(normalizeText(q))) {
+            askedQuestions.add(q); // Add matched question to the Set
+          }
+        });
+      });
+
+    setQuestionCount(askedQuestions.size); // Update state with unique matches
+  };
 
   // Helper function to manage run status
   const waitForRunCompletion = async (threadId: string, runId: string, maxAttempts = 30) => {
@@ -85,28 +116,28 @@ const Chat: React.FC = () => {
   };
 
   // Helper function to manage active runs
-  const handleActiveRuns = async (threadId: string) => {
-    try {
-      const runs = await openai.beta.threads.runs.list(threadId);
-      const activeRuns = runs.data.filter(run => 
-        ['in_progress', 'queued'].includes(run.status)
-      );
+  // const handleActiveRuns = async (threadId: string) => {
+  //   try {
+  //     const runs = await openai.beta.threads.runs.list(threadId);
+  //     const activeRuns = runs.data.filter(run => 
+  //       ['in_progress', 'queued'].includes(run.status)
+  //     );
 
-      for (const run of activeRuns) {
-        try {
-          await openai.beta.threads.runs.cancel(threadId, run.id);
-          await new Promise(resolve => setTimeout(resolve, 1000));
-        } catch (error) {
-          console.log(`Run ${run.id} already completed or cancelled`);
-        }
-      }
+  //     for (const run of activeRuns) {
+  //       try {
+  //         await openai.beta.threads.runs.cancel(threadId, run.id);
+  //         await new Promise(resolve => setTimeout(resolve, 1000));
+  //       } catch (error) {
+  //         console.log(`Run ${run.id} already completed or cancelled`);
+  //       }
+  //     }
 
-      await new Promise(resolve => setTimeout(resolve, 1000));
-    } catch (error) {
-      console.error('Error handling active runs:', error);
-      throw error;
-    }
-  };
+  //     await new Promise(resolve => setTimeout(resolve, 1000));
+  //   } catch (error) {
+  //     console.error('Error handling active runs:', error);
+  //     throw error;
+  //   }
+  // };
 
   // Helper function to check run status
   const checkRunStatus = async (threadId: string, runId: string) => {
@@ -190,7 +221,7 @@ const Chat: React.FC = () => {
         setThreadId(threadId);
         setMessages(interviewData.messages || []);
         setCurrentPhase(interviewData.currentPhase || 'discovery');
-        setQuestionCount(interviewData.messages?.filter(m => m.role === 'user').length || 0);
+        updateQuestionCount(interviewData.messages || []);
         setReports(interviewData.reports || {});
 
         console.log('Firestore Interview Data:', {
@@ -304,6 +335,7 @@ const Chat: React.FC = () => {
 
                 setMessages(prev => {
                     const updated = [...prev, newMessage];
+                    updateQuestionCount(updated);
                     updateInterviewMessages(updated);
                     return updated;
                 });
@@ -332,7 +364,7 @@ const Chat: React.FC = () => {
     setIsTyping(true);
 
     try {
-      await handleActiveRuns(threadId);
+      // await handleActiveRuns(threadId);
 
       await openai.beta.threads.messages.create(threadId, {
         role: 'user',
@@ -345,7 +377,7 @@ const Chat: React.FC = () => {
 
       await waitForRunCompletion(threadId, run.id);
       await processAssistantResponse(threadId);
-      setQuestionCount(prev => prev + 1);
+      // setQuestionCount(prev => prev + 1);
     } catch (error) {
       console.error('Error sending message:', error);
       toast.error('Failed to send message. Please try again.');
@@ -411,6 +443,7 @@ const Chat: React.FC = () => {
       setReports(updatedReports);
       if (nextPhase) {
         setCurrentPhase(nextPhase);
+        setQuestionCount(1); // Start the new phase with the first question completed
       } else {
         setCurrentPhase('complete');
         const finalMessage: Message = {
@@ -447,13 +480,17 @@ const Chat: React.FC = () => {
       <PhaseProgress 
         currentPhase={currentPhase}
         questionCount={questionCount}
-        totalQuestions={PHASE_QUESTIONS[currentPhase]}
+        totalQuestions={PREDEFINED_QUESTIONS.length}
         reports={reports}
         brandName={sessionStorage.getItem('brandName') || ''}
       />
       
       <main className="flex-grow overflow-hidden p-6 bg-white-smoke mt-20">
-        <div ref={messageListRef} className="h-full overflow-y-auto pr-4 pb-4 space-y-4">
+        <div 
+          ref={messageListRef} 
+          className="h-full overflow-y-auto pr-4 pb-20 pt-16 space-y-4"
+          style={{ paddingBottom: `${inputBoxRef.current?.offsetHeight || 80}px` }}
+        >
         {messages.map((message, index) => (
           <MessageBubble
               key={index}
@@ -471,13 +508,15 @@ const Chat: React.FC = () => {
         </div>
       </main>
       
-      <MessageInput 
-        input={input}
-        setInput={setInput}
-        isLoading={isLoading}
-        sendMessage={sendMessage}
-        inputRef={inputRef}
-      />
+      <div ref={inputBoxRef} className="fixed bottom-0 w-full bg-white p-4 input-box">
+        <MessageInput 
+          input={input}
+          setInput={setInput}
+          isLoading={isLoading}
+          sendMessage={sendMessage}
+          inputRef={inputRef}
+        />
+      </div>
     </div>
   );
 };
