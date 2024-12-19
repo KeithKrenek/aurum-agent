@@ -17,7 +17,12 @@ export interface Reports {
   messaging?: string;
   audience?: string;
   complete?: string;
-  [key: string]: string | undefined;
+  combined?: string;
+}
+
+// Type guard for checking if a phase exists in reports
+export function isValidPhase(phase: string): phase is keyof Reports {
+  return ['discovery', 'messaging', 'audience', 'complete', 'combined'].includes(phase);
 }
 
 export interface Message {

@@ -15,6 +15,8 @@ export default {
           'pale-slate': '#dbdce0',
           'desert-sand': '#e3cdbd',
           'champagne': '#e3d9c5',
+          'dark-midnight': '#0d1e32',
+          'goldenrod': '#d29230',
         },
         fontFamily: {
           'caslon': ['Caslon Grad', 'serif'],

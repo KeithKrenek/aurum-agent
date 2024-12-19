@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { Download, Check, Loader } from 'lucide-react';
 import { generatePDF } from './pdfGenerator';
 import toast from 'react-hot-toast';
-import { PhaseId, Reports } from './types/interview';
+import { PhaseId, Reports, isValidPhase } from './types/interview';
 import { PhaseConfig } from './ProgressManager';
 import { PREDEFINED_QUESTIONS } from './types/constants';
 
@@ -47,26 +47,40 @@ const PhaseProgress: React.FC<PhaseProgressProps> = ({
     },
   ];  
 
-  const hasReport = (phaseId: string): boolean => {
-    return Boolean(reports && reports[phaseId]);
-  };
+  // const hasReport = (phaseId: string): boolean => {
+  //   return Boolean(reports && reports[phaseId]);
+  // };
 
-  const handleDownload = async (phaseId: string, phaseLabel: string) => {
+  const handleDownload = async (phaseId: 'combined') => {
+    const requiredReports = ['discovery', 'messaging', 'audience'] as const;
     
-    if (!reports[phaseId]) {
-      console.log(`No report found for ${phaseId}`);
-      toast.error(`No report available for ${phaseLabel}.`);
+    const missingReports = requiredReports.filter(phase => {
+      if (isValidPhase(phase)) {
+        return !reports[phase];
+      }
+      return true;
+    });
+    
+    if (missingReports.length > 0) {
+      toast.error('Some reports are not yet available.');
       return;
     }
-
+  
     try {
       setDownloadingPhase(phaseId);
+      const combinedReports = requiredReports.map(phase => {
+        if (isValidPhase(phase) && reports[phase]) {
+          return reports[phase]!;
+        }
+        throw new Error('Invalid phase or missing report');
+      });
+      
       await generatePDF({
         brandName,
-        reportParts: [reports[phaseId]!],
-        phaseName: phaseLabel
+        reportParts: combinedReports,
+        phaseName: 'Brand Spark Analysis'
       });
-      toast.success(`${phaseLabel} report downloaded successfully`);
+      toast.success('Complete brand report downloaded successfully.');
     } catch (error) {
       console.error('Download failed:', error);
       toast.error('Failed to download report. Please try again.');
@@ -80,10 +94,10 @@ const PhaseProgress: React.FC<PhaseProgressProps> = ({
   const totalQuestions = PREDEFINED_QUESTIONS.length;
   const progressPercentage = ((questionCount) / totalQuestions) * 100;
 
-  console.log('Current phase:', currentPhase);
-  console.log('Current phase index:', currentPhaseIndex);
-  console.log('Question:', questionCount);
-  console.log('Progress:', progressPercentage);
+  // console.log('Current phase:', currentPhase);
+  // console.log('Current phase index:', currentPhaseIndex);
+  // console.log('Question:', questionCount);
+  // console.log('Progress:', progressPercentage);
 
   return (
     <div className="fixed top-0 left-0 right-0 bg-white z-50 shadow-md">
@@ -92,43 +106,38 @@ const PhaseProgress: React.FC<PhaseProgressProps> = ({
           {phases.map((phase, index) => {
             const isCompleted = currentPhase === 'complete' || index < currentPhaseIndex;
             const isCurrentPhase = index === currentPhaseIndex;
-            const reportAvailable = hasReport(phase.id);
-
+  
             return (
               <div key={phase.id} className="flex flex-col items-center text-center">
-                {/* Phase circle indicator rendered above the title */}
                 <div className={`w-8 h-8 rounded-full border-2 flex items-center justify-center mb-1 ${
                   isCompleted ? 'border-desert-sand text-desert-sand' : 'border-neutral-gray text-neutral-gray'
                 }`}>
                   {isCompleted ? <Check className="w-4 h-4" /> : <span>{index + 1}</span>}
                 </div>
-                
-                {/* Conditional rendering of either download button or static text */}
-                {reportAvailable ? (
-                  // Download button rendered when a report exists for this phase
-                  <button
-                    onClick={() => handleDownload(phase.id, phase.label)}
-                    disabled={downloadingPhase === phase.id}
-                    className="text-sm font-semibold text-black hover:text-desert-sand transition-colors"
-                  >
-                    {downloadingPhase === phase.id ? (
-                      <Loader className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <span className="flex items-center gap-1">
-                        <Download className="w-3 h-3" />
-                        {phase.label} Report
-                      </span>
-                    )}
-                  </button>
-                ) : (
-                  // Static text rendered when no report is available
-                  <span className={`text-sm ${isCurrentPhase ? 'font-semibold' : 'text-neutral-gray'}`}>
-                    {phase.label}
-                  </span>
-                )}
+                <span className={`text-sm ${isCurrentPhase ? 'font-semibold' : 'text-neutral-gray'}`}>
+                  {phase.label}
+                </span>
               </div>
             );
           })}
+          
+          {/* Add final report download button */}
+          {currentPhase === 'complete' && (
+            <button
+              onClick={() => handleDownload('combined')}
+              disabled={downloadingPhase === 'combined'}
+              className="ml-4 px-4 py-2 bg-desert-sand text-dark-gray rounded-lg hover:bg-champagne transition-colors"
+            >
+              {downloadingPhase === 'combined' ? (
+                <Loader className="w-4 h-4 animate-spin" />
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Download className="w-4 h-4" />
+                  Brand Spark Report
+                </span>
+              )}
+            </button>
+          )}
         </div>
         
         <div className="relative pt-1">

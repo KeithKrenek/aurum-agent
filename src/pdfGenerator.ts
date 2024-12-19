@@ -3,7 +3,7 @@ import { CaslonGradReg } from './fonts/CaslonGrad-Regular.js';
 import { IbarraRealNovaBold } from './fonts/IbarraRealNova-Bold.js';
 import titlepage from './assets/bam-spark-1.png';
 import secondpage from './assets/bam-spark-2.png';
-// import smallLogo from './assets/black-logo.png';
+import smallLogo from './assets/black-logo.png';
 
 interface PdfOptions {
   brandName: string;
@@ -138,22 +138,19 @@ export const generatePDF = async ({ brandName, reportParts, phaseName }: PdfOpti
   });
 
   // Add footer with page numbers and logo
-  // const pageCount = pdf.getNumberOfPages();
-  // for (let i = 1; i <= pageCount; i++) {
-  //   pdf.setPage(i);
-  //   if (i === 1) continue; // Skip footer on cover page
-
-  //   pdf.setFont('helvetica', 'normal');
-  //   pdf.setFontSize(10);
-  //   pdf.text(`Page ${i} of ${pageCount}`, margin, pageHeight - margin / 2);
-
-  //   const logoHeight = margin / 2;
-  //   const logoWidth = logoHeight * 2.34;
-  //   pdf.addImage(smallLogo, 'PNG', pageWidth - margin - logoWidth, pageHeight - margin * 0.75, logoWidth, logoHeight);
-  // }
+  const pageCount = pdf.getNumberOfPages();
+  const logoHeight = 0.25 * margin;
+  const logoWidth = 2.34 * margin;
+  for (let i = 3; i <= pageCount; i++) { // Skip footer on cover page and second page
+    pdf.setPage(i);
+    pdf.setFontSize(10);
+    pdf.setFont('CaslonGrad-Regular', 'normal');
+    pdf.text(`${i} of ${pageCount}`, margin, pageHeight - margin / 2, { align: 'left' });
+    pdf.addImage(smallLogo, 'PNG', pageWidth - logoWidth - margin, pageHeight - logoHeight - margin / 2, logoWidth, logoHeight);
+  }
 
   // Save the PDF with dynamic phase-based name
   const sanitizedPhaseName = phaseName.toLowerCase().replace(/\s+/g, '-');
-  const fileName = `${brandName.toLowerCase().replace(/\s+/g, '-')}-${sanitizedPhaseName}-report.pdf`;
+  const fileName = `${brandName.toLowerCase().replace(/\s+/g, '-')}-${sanitizedPhaseName}.pdf`;
   pdf.save(fileName);
 };

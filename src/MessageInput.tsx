@@ -1,6 +1,6 @@
 // src/components/MessageInput.tsx
 
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Send, Loader } from 'lucide-react';
 
 interface MessageInputProps {
@@ -30,9 +30,17 @@ const MessageInput: React.FC<MessageInputProps> = ({
   const handleInput = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const textarea = e.target;
     textarea.style.height = 'inherit';
-    textarea.style.height = `${textarea.scrollHeight}px`;
+    const computedHeight = Math.min(textarea.scrollHeight, 200); // Maximum height
+    textarea.style.height = `${Math.max(48, computedHeight)}px`; // Minimum height of 48px
     setInput(e.target.value);
   };
+
+  // Add a useEffect to reset height when input is cleared
+  useEffect(() => {
+    if (!input && inputRef.current) {
+      inputRef.current.style.height = '48px';
+    }
+  }, [input]);
 
   return (
     <footer className="bg-white p-4 border-t border-neutral-gray">

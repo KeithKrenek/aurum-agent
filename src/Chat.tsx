@@ -39,29 +39,76 @@ const Chat: React.FC = () => {
     dangerouslyAllowBrowser: true
   });
 
-  const scrollToBottom = () => {
-    messageListRef.current?.scrollTo({
-      top: messageListRef.current.scrollHeight,
-      behavior: 'smooth',
-    });
+  const scrollToBottom = (behavior: ScrollBehavior = 'smooth') => {
+    if (!messageListRef.current) return;
+    
+    const scrollContainer = messageListRef.current;
+    const scrollHeight = scrollContainer.scrollHeight;
+    const clientHeight = scrollContainer.clientHeight;
+    const maxScroll = scrollHeight - clientHeight;
+    
+    // Ensure we're only scrolling if we need to
+    if (scrollContainer.scrollTop < maxScroll) {
+      try {
+        scrollContainer.scrollTo({
+          top: scrollHeight,
+          behavior,
+        });
+      } catch (error) {
+        // Fallback for browsers that don't support smooth scrolling
+        scrollContainer.scrollTop = scrollHeight;
+      }
+    }
   };
+  
+  // Remove all existing scroll-related useEffect hooks and replace with:
+  
+  useEffect(() => {
+    let scrollTimeout: NodeJS.Timeout;
+    
+    if (messages.length > 0 || isTyping) {
+      // Wait for content to render and stabilize
+      scrollTimeout = setTimeout(() => {
+        scrollToBottom(isTyping ? 'smooth' : 'instant');
+      }, 100);
+    }
+    
+    return () => {
+      if (scrollTimeout) {
+        clearTimeout(scrollTimeout);
+      }
+    };
+  }, [messages, isTyping]);
 
-  useEffect(scrollToBottom, [messages]);
+ 
 
   const adjustMessageListPadding = () => {
-    if (inputBoxRef.current) {
-      const inputHeight = inputBoxRef.current.offsetHeight;
-      messageListRef.current?.style.setProperty('padding-bottom', `${inputHeight + 20}px`);
-    }
+    if (!inputBoxRef.current || !messageListRef.current) return;
+    
+    const inputHeight = inputBoxRef.current.offsetHeight;
+    const padding = inputHeight + 20; // 20px extra space
+    
+    requestAnimationFrame(() => {
+      if (messageListRef.current) {
+        messageListRef.current.style.paddingBottom = `${padding}px`;
+      }
+    });
   };
   
   useEffect(() => {
     adjustMessageListPadding();
-  }, [input, messages]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [input]);
+    
+    // Add resize observer to handle dynamic input height changes
+    const resizeObserver = new ResizeObserver(adjustMessageListPadding);
+    
+    if (inputBoxRef.current) {
+      resizeObserver.observe(inputBoxRef.current);
+    }
+    
+    return () => {
+      resizeObserver.disconnect();
+    };
+  }, []);
 
   // Focus the textarea when the component mounts
   useEffect(() => {
@@ -296,15 +343,19 @@ const Chat: React.FC = () => {
     // Extract all report blocks
     while ((match = reportRegex.exec(response)) !== null) {
         reportContents.push(match[1].trim());
-        remainingContent = remainingContent.replace(match[0], '   ---   ').trim(); // Remove matched block
+        remainingContent = remainingContent.replace(match[0], '').trim(); // Remove matched block
     }
 
-    // Replace report placeholders with user-friendly message
-    // if (reportContents.length > 0) {
-    //     remainingContent += '\n[Please download reports from the progress ribbon above.]';
-    // }
+    // Add hyperlink to course mentions
+    const courseRegex = /Brand Alchemy Mastery course|course/gi;
+    const linkedContent = remainingContent.replace(courseRegex, 
+      match => `<a href="www.elementsist.com/brandalchemymastery" target="_blank" class="text-dark-midnight hover:text-goldenrod underline">${match}</a>`
+    );
 
-    return { reportContents, remainingContent };
+    return {
+      reportContents,
+      remainingContent: linkedContent
+    };
   };
 
   const processAssistantResponse = async (threadId: string) => {
@@ -359,6 +410,7 @@ const Chat: React.FC = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    scrollToBottom('instant');  // Immediate scroll after user message
     setInput('');
     setIsLoading(true);
     setIsTyping(true);
@@ -476,7 +528,7 @@ const Chat: React.FC = () => {
   }, [interviewId]);
 
   return (
-    <div className="flex flex-col h-full bg-white">
+    <div className="flex flex-col h-screen bg-white">
       <PhaseProgress 
         currentPhase={currentPhase}
         questionCount={questionCount}
@@ -485,21 +537,24 @@ const Chat: React.FC = () => {
         brandName={sessionStorage.getItem('brandName') || ''}
       />
       
-      <main className="flex-grow overflow-hidden p-6 bg-white-smoke mt-20">
+      <main className="flex-grow relative overflow-hidden bg-white-smoke mt-20">
         <div 
           ref={messageListRef} 
-          className="h-full overflow-y-auto pr-4 pb-20 pt-16 space-y-4"
-          style={{ paddingBottom: `${inputBoxRef.current?.offsetHeight || 80}px` }}
+          className="absolute inset-0 overflow-y-auto px-6 pb-20 pt-20 space-y-4"
+          style={{ 
+            paddingBottom: `${inputBoxRef.current?.offsetHeight || 80}px`,
+            paddingTop: '1rem'
+          }}
         >
-        {messages.map((message, index) => (
-          <MessageBubble
+          {messages.map((message, index) => (
+            <MessageBubble
               key={index}
               message={message}
               isLast={index === messages.length - 1}
               brandName={sessionStorage.getItem('brandName') || ''}
-              reportContent={reports.complete || null} // Pass the final report content
-          />
-        ))}
+              reportContent={reports.complete || null}
+            />
+          ))}
           {isTyping && (
             <div className="text-neutral-gray italic">
               Transforming...
@@ -508,7 +563,7 @@ const Chat: React.FC = () => {
         </div>
       </main>
       
-      <div ref={inputBoxRef} className="fixed bottom-0 w-full bg-white p-4 input-box">
+      <div ref={inputBoxRef} className="sticky bottom-0 w-full bg-white border-t border-neutral-gray">
         <MessageInput 
           input={input}
           setInput={setInput}
